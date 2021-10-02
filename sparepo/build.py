@@ -239,6 +239,9 @@ def create_hashtable(
         Filename to write the hashtable to.
     """
 
+    snapshot = Path(snapshot)
+    hashtable = Path(hashtable)
+
     metadata = FileMetadata(filename=snapshot)
 
     files = {
@@ -256,7 +259,8 @@ def create_hashtable(
     # Remove the output file before we start messing with it, otherwise
     # we're going to get a partial overwrite in the best case and a
     # crash in the worst (or the other way around, if I think about it...)
-    os.remove(hashtable)
+    if hashtable.exists():
+        os.remove(hashtable)
 
     # Start with metadata
     with h5py.File(hashtable, "w") as handle:
