@@ -1,6 +1,8 @@
 SpAREPO
 =======
 
+[![PyPI version](https://badge.fury.io/py/sparepo.svg)](https://badge.fury.io/py/sparepo)
+
 Spatial hasthtable building for AREPO. Built to be extremely lightweight
 and low-code, with an easily understandable hashtable file.
 
