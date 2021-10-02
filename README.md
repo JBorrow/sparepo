@@ -22,7 +22,7 @@ that the particles are in.
 
 `sparepo` provides utilities to build the hashtables, but also provides the
 utilities to read said hashtables in python. The file format, described below,
-for the hashtable is simple, though, so it can be used in other
+for the hashtable is simple so it can be used in other
 implementations if required.
 
 Requirements
