@@ -66,7 +66,7 @@ Cells/
     }
 PartTypeX/
     CellY/
-        FileZ: Ox2 array of slices.
+        FileZ: Length O array of indicies.
             Attrs: {
                 FileName: Pathless filename of this file.
                 FileNumber: Integer file number of this file, helpful
