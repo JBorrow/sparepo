@@ -22,5 +22,5 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=["numba", "attrs", "h5py", "numpy"],
+    install_requires=["numba>0.50.0", "attrs", "h5py>3.0.0", "numpy"],
 )
