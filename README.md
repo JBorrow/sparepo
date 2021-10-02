@@ -152,3 +152,7 @@ data from file.
 
 Note that the reading performance here is actually limited by the
 loop over indicies (and having to call a h5py read for each of them).
+Contiguous ranges are read together, which improves performance
+significantly, so the read performance is actually entirely limited
+by the data locality. More complex reading schemes may be able
+to vastly improve the speed of data loading.
