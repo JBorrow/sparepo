@@ -14,6 +14,7 @@ PartTypeTotals) are saved to disk.
 """
 
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -215,3 +216,98 @@ def compute_hashtable_for_file(
         cell_table[part_type] = clean_particle_ids
 
     return cell_counts, cell_table
+
+
+def create_hashtable(
+    snapshot: Path,
+    cells_per_axis: int,
+    hashtable: Path,
+):
+    """
+    Creates the hashtable file and saves it to disk.
+    Note that the file will be opened and closed multiple times
+    during the creation process.
+
+    snapshot: Path
+        Path to the first snapshot file (``.0.hdf5``)
+
+    cells_per_axis: int
+        Number of cells across each spatial axis. The cell size
+        will hence be ``BoxSize / cells_per_axis``.
+
+    hashtable: Path
+        Filename to write the hashtable to.
+    """
+
+    metadata = FileMetadata(filename=snapshot)
+
+    files = {
+        file_number: Path(f"{metadata.base_path}.{file_number}.hdf5")
+        for file_number in range(metadata.number_of_chunks)
+    }
+
+    cell_structure = CellStructure(
+        box_size=metadata.box_size,
+        cells_per_axis=cells_per_axis,
+    )
+
+    counts_by_file = []
+
+    # Remove the output file before we start messing with it, otherwise
+    # we're going to get a partial overwrite in the best case and a
+    # crash in the worst (or the other way around, if I think about it...)
+    os.remove(hashtable)
+
+    # Start with metadata
+    with h5py.File(hashtable, "w") as handle:
+        metadata.write_metadata_to_hdf5(handle=handle)
+        cell_structure.write_metadata_to_hdf5(handle=handle)
+
+    for file_number, filename in files.items():
+        counts, particle_ids = compute_hashtable_for_file(
+            filename=filename, cell_structure=cell_structure
+        )
+
+        counts_by_file.append(counts)
+
+        with h5py.File(hashtable, "a") as handle:
+            for part_type in part_types_to_use:
+                part_type_string = f"PartType{part_type}"
+
+                if not part_type_string in handle:
+                    part_type_group = handle.create_group(part_type_string)
+                else:
+                    part_type_group: h5py.Group = handle[part_type_string]
+
+                for cell, table in particle_ids[part_type].items():
+                    cell_string = f"Cell{cell}"
+
+                    if not cell_string in part_type_group:
+                        cell_group = part_type_group.create_group(cell_string)
+                    else:
+                        cell_group: h5py.Group = part_type_group[cell_string]
+
+                    file_dataset = cell_group.create_dataset(
+                        f"File{file_number}", data=table, compression="gzip"
+                    )
+
+                    file_dataset.attrs.create("FileName", filename.parts[-1])
+                    file_dataset.attrs.create("FileNumber", file_number)
+
+    # Finish off by creating an array of counts per file
+    for part_type in part_types_to_use:
+        output_count_array = np.empty(
+            (cell_structure.cells_per_axis ** 3, metadata.number_of_chunks),
+            dtype=np.int32,
+        )
+
+        for file_number, counts in enumerate(counts_by_file):
+            output_count_array[:, file_number] = counts[part_type][:]
+
+        with h5py.File(hashtable, "a") as handle:
+            if not "Cells/Counts" in handle:
+                counts_group = handle.create_group("Cells/Counts")
+            else:
+                counts_group: h5py.Group = handle["Cells/Counts"]
+
+            counts_group.create_dataset(f"PartType{part_type}", data=output_count_array)
