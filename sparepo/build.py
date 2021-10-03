@@ -172,11 +172,11 @@ def compute_hashtable_for_file(
     Returns
     -------
 
-    cell_counts: Dict[int, np.array]
+    cell_counts: Dict[ParticleType, np.array]
         Counts for all particle types in the cells in an array
         hashed as described in ``CellStructure``.
 
-    cell_table: Dict[int, Dict[int, np.ndarray]]
+    cell_table: Dict[ParticleType, Dict[int, np.ndarray]]
         Hashtable given as [PartType][Cell] = [range].
     """
 
@@ -212,8 +212,8 @@ def compute_hashtable_for_file(
             if len(particle_table) > 0:
                 clean_particle_ids[cell_id] = particle_table
 
-        cell_counts[part_type.value] = counts
-        cell_table[part_type.value] = clean_particle_ids
+        cell_counts[part_type] = counts
+        cell_table[part_type] = clean_particle_ids
 
     return cell_counts, cell_table
 
@@ -283,7 +283,7 @@ def create_hashtable(
                 else:
                     part_type_group: h5py.Group = handle[part_type_string]
 
-                for cell, table in particle_ids[part_type.value].items():
+                for cell, table in particle_ids[part_type].items():
                     cell_string = f"Cell{cell}"
 
                     if not cell_string in part_type_group:
@@ -306,7 +306,7 @@ def create_hashtable(
         )
 
         for file_number, counts in enumerate(counts_by_file):
-            output_count_array[:, file_number] = counts[part_type.value][:]
+            output_count_array[:, file_number] = counts[part_type][:]
 
         with h5py.File(hashtable, "a") as handle:
             if not "Cells/Counts" in handle:
