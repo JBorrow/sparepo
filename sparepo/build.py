@@ -212,8 +212,8 @@ def compute_hashtable_for_file(
             if len(particle_table) > 0:
                 clean_particle_ids[cell_id] = particle_table
 
-        cell_counts[part_type] = counts
-        cell_table[part_type] = clean_particle_ids
+        cell_counts[part_type.value] = counts
+        cell_table[part_type.value] = clean_particle_ids
 
     return cell_counts, cell_table
 
@@ -276,14 +276,14 @@ def create_hashtable(
 
         with h5py.File(hashtable, "a") as handle:
             for part_type in part_types_to_use:
-                part_type_string = f"PartType{part_type}"
+                part_type_string = f"PartType{part_type.value}"
 
                 if not part_type_string in handle:
                     part_type_group = handle.create_group(part_type_string)
                 else:
                     part_type_group: h5py.Group = handle[part_type_string]
 
-                for cell, table in particle_ids[part_type].items():
+                for cell, table in particle_ids[part_type.value].items():
                     cell_string = f"Cell{cell}"
 
                     if not cell_string in part_type_group:
@@ -306,7 +306,7 @@ def create_hashtable(
         )
 
         for file_number, counts in enumerate(counts_by_file):
-            output_count_array[:, file_number] = counts[part_type][:]
+            output_count_array[:, file_number] = counts[part_type.value][:]
 
         with h5py.File(hashtable, "a") as handle:
             if not "Cells/Counts" in handle:
@@ -314,4 +314,4 @@ def create_hashtable(
             else:
                 counts_group: h5py.Group = handle["Cells/Counts"]
 
-            counts_group.create_dataset(f"PartType{part_type}", data=output_count_array)
+            counts_group.create_dataset(f"PartType{part_type.value}", data=output_count_array)
