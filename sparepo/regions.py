@@ -74,7 +74,8 @@ class SpatialRegion:
         -------
 
         file_mask: Dict[int, np.ndarray]
-            Range masks per file for reading.
+            Index masks per file for reading. If you want ranges,
+            you must use ``ranges_from_array`` manually now.
 
         file_counts: Dict[int, int]
             Number of particles to be read from each file.
