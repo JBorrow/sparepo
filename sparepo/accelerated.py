@@ -116,3 +116,54 @@ def ranges_from_array(array: Iterable[np.int32]) -> np.ndarray:
     output.append([start, stop + 1])
 
     return output
+
+
+@numba.njit
+def ranges_to_boolean(ranges: np.ndarray):
+    """
+    Converts the ranges for reading out of chunks
+    to a boolean array, with metadata.
+
+    Parameters
+    ----------
+
+    ranges: np.ndarray
+        Unfortunately numba no longer supports stacked
+        lists, so you must convert the ranges to an array
+        for use with this function.
+
+
+    Returns
+    -------
+
+    boolean_mask: np.array[bool]
+        Boolean mask for the data to be read out of file.
+
+    global_start: int
+        Starting index to read from the file, to match with
+        the boolean mask.
+
+    global_end: int
+        Ending index to read from the file, to match with
+        the boolean mask.
+
+    size_of_range: int
+        Total _resultant_ number of particles that will be read.
+        This can be used to slice into the output array.
+    """
+
+    global_start = ranges[0][0]
+    global_stop = ranges[-1][1]
+
+    size = global_stop - global_start
+
+    boolean_mask = np.zeros(size, dtype=np.bool_)
+    size_of_range = 0
+
+    for index in range(len(ranges)):
+        low = ranges[index][0] - global_start
+        high = ranges[index][1] - global_start
+        size_of_range += high - low
+        boolean_mask[low:high] = np.bool_(1)
+
+    return boolean_mask, global_start, global_stop, size_of_range

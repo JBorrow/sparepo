@@ -157,4 +157,26 @@ loop over indicies (and having to call a h5py read for each of them).
 Contiguous ranges are read together, which improves performance
 significantly, so the read performance is actually entirely limited
 by the data locality. More complex reading schemes may be able
-to vastly improve the speed of data loading.
+to vastly improve the speed of data loading. By default, we use
+`brutal=True` in `read_dataset`. This enables loading of the whole
+chunk at once, and then post-read masking for anything other than
+the smallest ranges. If you are extremely memory constrained, you
+can use `brutal=False`, but this will lead to significantly longer
+read times.
+
+
+Hashtable Reading with Units
+----------------------------
+
+It is also possible to read data including units, in physical space,
+and with h-factors removed. You can do this with the `read_dataset_with_units`
+function, taking the exact same data as the `read_dataset` one.
+
+```python
+coordinates = loader.read_dataset_with_units(
+    ParticleType.GAS, field_name="Coordinates", region=region
+).T
+```
+
+Where `coordinates` is now a fully filled-out `unyt` array, including
+the name `"Gas Coordinates (Physical, h-free)"`.
