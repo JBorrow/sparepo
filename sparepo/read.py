@@ -320,7 +320,7 @@ class SpatialLoader:
                     output_dest_sel = np.s_[already_read : size_of_range + already_read]
 
                     full_read = dataset[global_start:global_stop]
-                    # import pdb; pdb.set_trace()
+
                     output[output_dest_sel] = full_read[indices - global_start]
 
                     already_read += size_of_range
