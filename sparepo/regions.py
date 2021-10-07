@@ -105,7 +105,7 @@ class SpatialRegion:
         file_mask = {}
 
         for file, file_raw_mask in file_raw_masks.items():
-            file_mask[file] = ranges_from_array(np.sort(np.concatenate(file_raw_mask)))
+            file_mask[file] = np.sort(np.concatenate(file_raw_mask))
 
         self.file_mask[part_type] = file_mask
         self.file_counts[part_type] = file_counts

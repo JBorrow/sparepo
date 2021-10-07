@@ -17,7 +17,7 @@ import attr
 import h5py
 import numpy as np
 
-from sparepo.accelerated import ranges_to_boolean
+from sparepo.accelerated import ranges_from_array, ranges_to_boolean
 from sparepo.particle_types import ParticleType
 from sparepo.regions import SpatialRegion
 
@@ -298,7 +298,7 @@ class SpatialLoader:
         output = np.empty(shape, dtype=dtype)
         already_read = 0
 
-        for file_number, ranges in file_mask.items():
+        for file_number, indices in file_mask.items():
             with h5py.File(
                 self.snapshot_filename_for_chunk(chunk=file_number), "r"
             ) as handle:
@@ -313,22 +313,21 @@ class SpatialLoader:
                     # In brutal mode, we just load the whole chunk and
                     # then index it ourselves... Although, we might as well
                     # only read the part of the array that we _actually_ need.
-                    (
-                        boolean_mask,
-                        global_start,
-                        global_stop,
-                        size_of_range,
-                    ) = ranges_to_boolean(ranges=np.array(ranges))
+                    global_start = indices[0]
+                    global_stop = indices[-1] + 1
+                    size_of_range = to_be_read_from_file
 
                     output_dest_sel = np.s_[already_read : size_of_range + already_read]
 
                     full_read = dataset[global_start:global_stop]
-
-                    output[output_dest_sel] = full_read[boolean_mask]
+                    # import pdb; pdb.set_trace()
+                    output[output_dest_sel] = full_read[indices - global_start]
 
                     already_read += size_of_range
 
                     continue
+
+                ranges = ranges_from_array(indices)
 
                 # Reading individual particles with a call to `read_direct` is
                 # exceptionally slow. So we cache ranges that contain only one
