@@ -17,7 +17,7 @@ import attr
 import h5py
 import numpy as np
 
-from sparepo.accelerated import ranges_from_array, ranges_to_boolean
+from sparepo.accelerated import ranges_from_array
 from sparepo.particle_types import ParticleType
 from sparepo.regions import SpatialRegion
 
