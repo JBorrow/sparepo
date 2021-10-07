@@ -64,19 +64,19 @@ class SpatialLoader:
     hashtable: Path = attr.ib(converter=Path)
     snapshot: Path = attr.ib(converter=Path)
 
-    box_size: float
-    number_of_chunks: int
-    unit: str
-    hubble_param: float
-    hubble_param_scaling: int
-    scale_factor: float
+    box_size: float = attr.ib(init=False)
+    number_of_chunks: int = attr.ib(init=False)
+    unit: str = attr.ib(init=False)
+    hubble_param: float = attr.ib(init=False)
+    hubble_param_scaling: int = attr.ib(init=False)
+    scale_factor: float = attr.ib(init=False)
 
-    available_part_types: List[ParticleType]
-    centers: np.ndarray
-    counts: Dict[ParticleType, np.ndarray]
-    cell_size: float
-    number_of_cells: int
-    cells_per_axis: int
+    available_part_types: List[ParticleType] = attr.ib(init=False)
+    centers: np.ndarray = attr.ib(init=False)
+    counts: Dict[ParticleType, np.ndarray] = attr.ib(init=False)
+    cell_size: float = attr.ib(init=False)
+    number_of_cells: int = attr.ib(init=False)
+    cells_per_axis: int = attr.ib(init=False)
 
     def __attrs_post_init__(self):
         """

@@ -16,7 +16,6 @@ import attr
 import h5py
 import numpy as np
 
-from sparepo.accelerated import ranges_from_array
 from sparepo.particle_types import ParticleType
 
 
@@ -35,13 +34,13 @@ class SpatialRegion:
     instance for performance reasons.
     """
 
-    cell_mask: np.ndarray
-    cells_to_use: np.ndarray
+    cell_mask: np.ndarray = attr.ib(init=False)
+    cells_to_use: np.ndarray = attr.ib(init=False)
 
-    file_mask: Dict[ParticleType, Dict[int, np.ndarray]]
-    file_counts: Dict[ParticleType, Dict[int, int]]
+    file_mask: Dict[ParticleType, Dict[int, np.ndarray]] = attr.ib(init=False)
+    file_counts: Dict[ParticleType, Dict[int, int]] = attr.ib(init=False)
 
-    mask_calculated: bool
+    mask_calculated: bool = attr.ib(init=False)
 
     def __attrs_post_init__(self):
         self.file_mask = {}
@@ -148,10 +147,10 @@ class CartesianSpatialRegion(SpatialRegion):
     y: Tuple[float] = attr.ib()
     z: Tuple[float] = attr.ib()
 
-    mask_calculated = False
+    mask_calculated: bool = attr.ib(init=False)
 
-    cell_mask: np.ndarray
-    cells_to_use: np.ndarray
+    cell_mask: np.ndarray = attr.ib(init=False)
+    cells_to_use: np.ndarray = attr.ib(init=False)
 
     def set_cell_mask(self, centers: np.ndarray, cell_size: float):
         """
@@ -228,10 +227,10 @@ class SphericalSpatialRegion(SpatialRegion):
     center: Tuple[float] = attr.ib()
     radius: float = attr.ib(converter=float)
 
-    mask_calculated = False
+    mask_calculated: bool = attr.ib(init=False)
 
-    cell_mask: np.ndarray
-    cells_to_use: np.ndarray
+    cell_mask: np.ndarray = attr.ib(init=False)
+    cells_to_use: np.ndarray = attr.ib(init=False)
 
     def set_cell_mask(self, centers: np.ndarray, cell_size: float):
         """
