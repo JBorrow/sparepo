@@ -36,15 +36,18 @@ class SpatialRegion:
 
     cell_mask: np.ndarray = attr.ib(init=False)
     cells_to_use: np.ndarray = attr.ib(init=False)
+    wrap_table: np.ndarray = attr.ib(init=False)
 
     file_mask: Dict[ParticleType, Dict[int, np.ndarray]] = attr.ib(init=False)
     file_counts: Dict[ParticleType, Dict[int, int]] = attr.ib(init=False)
+    file_wrapper: Dict[ParticleType, Dict[int, np.ndarray]] = attr.ib(init=False)
 
     mask_calculated: bool = attr.ib(init=False)
 
     def __attrs_post_init__(self):
         self.file_mask = {}
         self.file_counts = {}
+        self.file_wrapper = {}
 
         # Do this here to ensure that we can have non-default fields.
         self.mask_calculated = False
@@ -78,39 +81,80 @@ class SpatialRegion:
 
         file_counts: Dict[int, int]
             Number of particles to be read from each file.
+
+        file_wrapper: Dict[int, np.ndarray]
+            Coordinates-shaped array of integers, from -1, 0, 1, indicating
+            whether or not that given co-ordinate should be box-wrapped and
+            in what direction.
         """
 
         if part_type in self.file_mask:
-            return self.file_mask[part_type], self.file_counts[part_type]
+            return (
+                self.file_mask[part_type],
+                self.file_counts[part_type],
+                self.file_wrapper[part_type],
+            )
 
         file_raw_masks: Dict[int, List[np.ndarray]] = {}
+        file_raw_wrappers: Dict[int, List[np.ndarray]] = {}
         file_counts: Dict[int, int] = {}
 
+        # Do we need to create a wrapper at all?
+        create_wrap_table = (self.wrap_table != 0).any()
+
         with h5py.File(hashtable, "r") as handle:
-            for cell in self.cells_to_use:
-                print
+            for cell, wrap in zip(self.cells_to_use, self.wrap_table):
                 cell_group = handle[f"PartType{part_type.value}/Cell{cell}"]
 
                 for file, raw in cell_group.items():
                     file_number = raw.attrs["FileNumber"]
+                    particles_in_cell = len(raw)
+
+                    if create_wrap_table:
+                        wrapper = (
+                            np.repeat(wrap, repeats=particles_in_cell)
+                            .reshape((len(wrap), particles_in_cell))
+                            .T
+                        )
+                    else:
+                        wrapper = None
 
                     if file_number in file_raw_masks:
                         file_raw_masks[file_number].append(raw[:])
-                        file_counts[file_number] += len(raw)
+                        file_raw_wrappers[file_number].append(wrapper)
+                        file_counts[file_number] += particles_in_cell
                     else:
                         file_raw_masks[file_number] = [raw[:]]
-                        file_counts[file_number] = len(raw)
+                        file_raw_wrappers[file_number] = [wrapper]
+                        file_counts[file_number] = particles_in_cell
 
         # Unpack the raw masks, sort them, and bin them together.
         file_mask = {}
+        file_wrapper = {}
 
-        for file, file_raw_mask in file_raw_masks.items():
-            file_mask[file] = np.sort(np.concatenate(file_raw_mask))
+        for file in file_raw_masks.keys():
+            file_raw_mask = file_raw_masks[file]
+            file_raw_wrapper = file_raw_wrappers[file]
+
+            concatenated_mask = np.concatenate(file_raw_mask)
+            sort_order = concatenated_mask.argsort()
+
+            file_mask[file] = concatenated_mask[sort_order]
+
+            if create_wrap_table:
+                file_wrapper[file] = np.concatenate(file_raw_wrapper)[sort_order]
+            else:
+                file_wrapper[file] = None
 
         self.file_mask[part_type] = file_mask
         self.file_counts[part_type] = file_counts
+        self.file_wrapper[part_type] = file_wrapper
 
-        return self.file_mask[part_type], self.file_counts[part_type]
+        return (
+            self.file_mask[part_type],
+            self.file_counts[part_type],
+            self.file_wrapper[part_type],
+        )
 
 
 @attr.s
@@ -147,11 +191,6 @@ class CartesianSpatialRegion(SpatialRegion):
     y: Tuple[float] = attr.ib()
     z: Tuple[float] = attr.ib()
 
-    mask_calculated: bool = attr.ib(init=False)
-
-    cell_mask: np.ndarray = attr.ib(init=False)
-    cells_to_use: np.ndarray = attr.ib(init=False)
-
     def set_cell_mask(self, centers: np.ndarray, cell_size: float):
         """
         Sets the internal cell mask for the required region.
@@ -176,21 +215,56 @@ class CartesianSpatialRegion(SpatialRegion):
             # We've already set ourself!
             return
 
+        boxsize = centers.max() + 0.5 * cell_size
+
         individual_restrictors = []
+        wrap_table = []
 
         for dimension, restriction in enumerate([self.x, self.y, self.z]):
             lower = restriction[0] - 0.5 * cell_size
             upper = restriction[1] + 0.5 * cell_size
 
-            individual_restrictors.append(
-                centers[:, dimension] > lower,
-            )
+            # Now need to deal with the three wrapping cases:
+            if lower < 0.0:
+                # Wrap lower -> high
+                individual_restrictors.append(
+                    np.logical_or(
+                        centers[:, dimension] > lower + boxsize,
+                        centers[:, dimension] < upper,
+                    )
+                )
 
-            individual_restrictors.append(
-                centers[:, dimension] < upper,
-            )
+                wrap_table.append(
+                    -1 * (centers[:, dimension] > lower + boxsize).astype(int)
+                )
+            elif upper > boxsize:
+                # Wrap high -> lower
+                individual_restrictors.append(
+                    np.logical_or(
+                        centers[:, dimension] > lower,
+                        centers[:, dimension] < upper - boxsize,
+                    )
+                )
+
+                wrap_table.append(
+                    1 * (centers[:, dimension] <= upper - boxsize).astype(int)
+                )
+            else:
+                # No wrapping required
+                individual_restrictors.append(
+                    centers[:, dimension] > lower,
+                )
+
+                individual_restrictors.append(
+                    centers[:, dimension] < upper,
+                )
+
+                wrap_table.append(np.zeros(len(centers), dtype=int))
+
+        wrap_table = np.array(wrap_table).T
 
         self.cell_mask = np.logical_and.reduce(individual_restrictors)
+        self.wrap_table = wrap_table[self.cell_mask]
         self.cells_to_use = np.where(self.cell_mask)[0]
 
         self.mask_calculated = True
@@ -226,11 +300,6 @@ class SphericalSpatialRegion(SpatialRegion):
 
     center: Tuple[float] = attr.ib()
     radius: float = attr.ib(converter=float)
-
-    mask_calculated: bool = attr.ib(init=False)
-
-    cell_mask: np.ndarray = attr.ib(init=False)
-    cells_to_use: np.ndarray = attr.ib(init=False)
 
     def set_cell_mask(self, centers: np.ndarray, cell_size: float):
         """
