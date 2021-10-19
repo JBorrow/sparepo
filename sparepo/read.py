@@ -249,6 +249,7 @@ class SpatialLoader:
         region: SpatialRegion,
         wrap: bool = False,
         brutal: bool = True,
+        brutal_fallback_percentage: float = 1.0,
     ) -> np.ndarray:
         """
         Reads a dataset in a given spatial region.
@@ -275,6 +276,13 @@ class SpatialLoader:
             fast filesystems, but comes with signifciant memory
             overhead. Default: True, should only be turned off
             when memory is extremely constrained.
+
+        brutal_fallback_percentage: float, optional
+            When reading less than this percentage of the file, even
+            when using brutal reading mode, we use the usual
+            selection method. Defaults to 1 (this is given
+            as a percentage, so that corresponds to 0.01 fraction
+            of the file).
 
         Returns
         -------
@@ -338,11 +346,15 @@ class SpatialLoader:
                     )
                     wrapper_read += to_be_read_from_file
 
+
+                percentage_of_file_to_read = 100.0 * to_be_read_from_file / len(dataset)
+                brutal_read = brutal and percentage_of_file_to_read > brutal_fallback_percentage
+
                 # Sometimes, though, we do know better than the user. If there are
                 # only a tiny number of particles in the file, let's not bother...
                 # Yes, the number where brutal becomes worth it or not _really_
-                # is this low. Tested by JB on 13 in MBA in Sep 2021.
-                if brutal and to_be_read_from_file > 2048:
+                # is less than 1%. Tested by JB on 13 in MBA in Sep 2021.
+                if brutal_read:
                     # In brutal mode, we just load the whole chunk and
                     # then index it ourselves... Although, we might as well
                     # only read the part of the array that we _actually_ need.
@@ -439,6 +451,7 @@ class SpatialLoader:
         region: SpatialRegion,
         wrap: bool = False,
         brutal: bool = True,
+        brutal_fallback_percentage: float = 1.0,
     ) -> "unyt.unyt_array":
         """
         Reads a dataset in a given spatial region.
@@ -455,6 +468,10 @@ class SpatialLoader:
         region: SpatialRegion
             Spatial region to load data within.
 
+        wrap: bool, optional
+            Should this data be box-wrapped? Optional, defaults
+            to false.
+
         brutal: bool, optional
             Brutal mode reads the whole chunk and then masks
             out the required data afterwards. This is faster on
@@ -462,9 +479,13 @@ class SpatialLoader:
             overhead. Default: True, should only be turned off
             when memory is extremely constrained.
 
-        wrap: bool, optional
-            Should this data be box-wrapped? Optional, defaults
-            to false.
+        brutal_fallback_percentage: float, optional
+            When reading less than this percentage of the file, even
+            when using brutal reading mode, we use the usual
+            selection method. Defaults to 1 (this is given
+            as a percentage, so that corresponds to 0.01 fraction
+            of the file).
+
 
 
         Returns
@@ -493,6 +514,7 @@ class SpatialLoader:
                 region=region,
                 wrap=wrap,
                 brutal=brutal,
+                brutal_fallback_percentage=brutal_fallback_percentage,
             ),
             units=self.unyt_units(part_type=part_type, field_name=field_name),
             name=f"{part_type.name.title()} {field_name} (Physical, h-free)",
