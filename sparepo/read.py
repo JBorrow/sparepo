@@ -158,16 +158,25 @@ class SpatialLoader:
         with h5py.File(self.snapshot_filename_for_chunk(chunk=0), "r") as handle:
             dataset = handle[dataset_path]
 
-            a_scale = self.scale_factor ** dataset.attrs["a_scaling"]
-            h_scale = self.hubble_param ** dataset.attrs["h_scaling"]
+            try:
+                a_scale = self.scale_factor ** dataset.attrs["a_scaling"]
+                h_scale = self.hubble_param ** dataset.attrs["h_scaling"]
+            except KeyError:
+                a_scale = 1.0
+                h_scale = 1.0
 
             correction_factor: float = a_scale * h_scale
 
-            length = float(dataset.attrs["length_scaling"])
-            mass = float(dataset.attrs["mass_scaling"])
-            velocity = float(dataset.attrs["velocity_scaling"])
+            try:
+                length = float(dataset.attrs["length_scaling"])
+                mass = float(dataset.attrs["mass_scaling"])
+                velocity = float(dataset.attrs["velocity_scaling"])
+            except KeyError:
+                length = 0.0
+                mass = 0.0
+                velocity = 0.0
 
-            if dataset.dtype in (int, np.int64, np.int32, np.uint64, np.uint32):
+            if np.issubdtype(dataset.dtype, np.integer):
                 correction_factor: int = 1
 
         return correction_factor, length, mass, velocity
