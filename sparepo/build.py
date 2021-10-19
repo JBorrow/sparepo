@@ -130,6 +130,10 @@ class FileMetadata:
         return -1
 
     @property
+    def scale_factor(self) -> float:
+        return float(self.read_header_attr(name="Time"))
+
+    @property
     def base_path(self) -> Path:
         """
         Provides the total base path as a string. So if
@@ -147,6 +151,7 @@ class FileMetadata:
             "HubbleParam": self.hubble_param,
             "Units": self.unit,
             "HubbleParamScaling": self.hubble_param_scaling,
+            "ScaleFactor": self.scale_factor,
         }.items():
             header.attrs.create(key, value)
 
@@ -314,4 +319,6 @@ def create_hashtable(
             else:
                 counts_group: h5py.Group = handle["Cells/Counts"]
 
-            counts_group.create_dataset(f"PartType{part_type.value}", data=output_count_array)
+            counts_group.create_dataset(
+                f"PartType{part_type.value}", data=output_count_array
+            )
