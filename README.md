@@ -162,7 +162,16 @@ to vastly improve the speed of data loading. By default, we use
 chunk at once, and then post-read masking for anything other than
 the smallest ranges. If you are extremely memory constrained, you
 can use `brutal=False`, but this will lead to significantly longer
-read times.
+read times. `brutal_fallback_percentage=1.0` controls the
+percentage of the file that must be read before really using this
+strategy. 
+
+If you would like the field to be automatically box-wrapped,
+you can use the `wrap=True` option, which by default is 
+disabled. Spatial loading automatically includes cells that
+overlap with the wrapped _region_, so loading a region
+centered on `[-5000.0, -5000.0, -5000.0]` with radius `1000.0`
+is valid.
 
 
 Hashtable Reading with Units
@@ -179,4 +188,6 @@ coordinates = loader.read_dataset_with_units(
 ```
 
 Where `coordinates` is now a fully filled-out `unyt` array, including
-the name `"Gas Coordinates (Physical, h-free)"`.
+the name `"Gas Coordinates (Physical, h-free)"`. Note that
+`read_dataset_with_units` also takes all the same parameters
+as `read_dataset`, such as `brutal`.
