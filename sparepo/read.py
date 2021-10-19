@@ -238,6 +238,7 @@ class SpatialLoader:
         part_type: ParticleType,
         field_name: str,
         region: SpatialRegion,
+        wrap: bool = False,
         brutal: bool = True,
     ) -> np.ndarray:
         """
@@ -254,6 +255,10 @@ class SpatialLoader:
 
         region: SpatialRegion
             Spatial region to load data within.
+
+        wrap: bool, optional
+            Should this data be box-wrapped? Optional, defaults
+            to false.
 
         brutal: bool, optional
             Brutal mode reads the whole chunk and then masks
@@ -279,7 +284,7 @@ class SpatialLoader:
         # This is one contiguous read so doesn't need to be cached,
         # as relative to the particle data reading it is very fast.
 
-        file_mask, file_count = region.get_file_mask(
+        file_mask, file_count, file_wrapper = region.get_file_mask(
             hashtable=self.hashtable, part_type=part_type
         )
 
@@ -298,12 +303,31 @@ class SpatialLoader:
         output = np.empty(shape, dtype=dtype)
         already_read = 0
 
+        # If there's nothing to wrap the overhead
+        # really isn't worth it
+        anything_to_wrap = any([x is not None for x in file_wrapper.values()]) and wrap
+        wrapper_read = 0
+
+        if anything_to_wrap:
+            wrapper = np.empty_like(output)
+        else:
+            # Should cause a nice crash...
+            wrapper = None
+
         for file_number, indices in file_mask.items():
+
             with h5py.File(
                 self.snapshot_filename_for_chunk(chunk=file_number), "r"
             ) as handle:
                 to_be_read_from_file = file_count[file_number]
                 dataset = handle[dataset_path]
+
+                # Create the file wrap, if required.
+                if anything_to_wrap:
+                    wrapper[wrapper_read : wrapper_read + to_be_read_from_file] += (
+                        self.box_size * file_wrapper[file_number]
+                    )
+                    wrapper_read += to_be_read_from_file
 
                 # Sometimes, though, we do know better than the user. If there are
                 # only a tiny number of particles in the file, let's not bother...
@@ -394,6 +418,9 @@ class SpatialLoader:
 
         assert already_read == particles_to_read
 
+        if anything_to_wrap:
+            output += wrapper
+
         return output
 
     def read_dataset_with_units(
@@ -401,6 +428,7 @@ class SpatialLoader:
         part_type: ParticleType,
         field_name: str,
         region: SpatialRegion,
+        wrap: bool = False,
         brutal: bool = True,
     ) -> "unyt.unyt_array":
         """
@@ -425,6 +453,10 @@ class SpatialLoader:
             overhead. Default: True, should only be turned off
             when memory is extremely constrained.
 
+        wrap: bool, optional
+            Should this data be box-wrapped? Optional, defaults
+            to false.
+
 
         Returns
         -------
@@ -447,7 +479,11 @@ class SpatialLoader:
 
         return unyt.unyt_array(
             self.read_dataset(
-                part_type=part_type, field_name=field_name, region=region, brutal=brutal
+                part_type=part_type,
+                field_name=field_name,
+                region=region,
+                wrap=wrap,
+                brutal=brutal,
             ),
             units=self.unyt_units(part_type=part_type, field_name=field_name),
             name=f"{part_type.name.title()} {field_name} (Physical, h-free)",
