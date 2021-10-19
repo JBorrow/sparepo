@@ -325,7 +325,10 @@ class SphericalSpatialRegion(SpatialRegion):
             # We've already set ourself!
             return
 
+        boxsize = centers.max() + 0.5 * cell_size
+
         individual_restrictors = []
+        wrap_table = []
 
         for dimension, restriction in enumerate(
             [[c - self.radius, c + self.radius] for c in self.center]
@@ -333,15 +336,47 @@ class SphericalSpatialRegion(SpatialRegion):
             lower = restriction[0] - 0.5 * cell_size
             upper = restriction[1] + 0.5 * cell_size
 
-            individual_restrictors.append(
-                centers[:, dimension] > lower,
-            )
+            # Now need to deal with the three wrapping cases:
+            if lower < 0.0:
+                # Wrap lower -> high
+                individual_restrictors.append(
+                    np.logical_or(
+                        centers[:, dimension] > lower + boxsize,
+                        centers[:, dimension] < upper,
+                    )
+                )
 
-            individual_restrictors.append(
-                centers[:, dimension] < upper,
-            )
+                wrap_table.append(
+                    -1 * (centers[:, dimension] > lower + boxsize).astype(int)
+                )
+            elif upper > boxsize:
+                # Wrap high -> lower
+                individual_restrictors.append(
+                    np.logical_or(
+                        centers[:, dimension] > lower,
+                        centers[:, dimension] < upper - boxsize,
+                    )
+                )
+
+                wrap_table.append(
+                    1 * (centers[:, dimension] <= upper - boxsize).astype(int)
+                )
+            else:
+                # No wrapping required
+                individual_restrictors.append(
+                    centers[:, dimension] > lower,
+                )
+
+                individual_restrictors.append(
+                    centers[:, dimension] < upper,
+                )
+
+                wrap_table.append(np.zeros(len(centers), dtype=int))
+
+        wrap_table = np.array(wrap_table).T
 
         self.cell_mask = np.logical_and.reduce(individual_restrictors)
+        self.wrap_table = wrap_table[self.cell_mask]
         self.cells_to_use = np.where(self.cell_mask)[0]
 
         self.mask_calculated = True
