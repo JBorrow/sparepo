@@ -346,9 +346,10 @@ class SpatialLoader:
                     )
                     wrapper_read += to_be_read_from_file
 
-
                 percentage_of_file_to_read = 100.0 * to_be_read_from_file / len(dataset)
-                brutal_read = brutal and percentage_of_file_to_read > brutal_fallback_percentage
+                brutal_read = (
+                    brutal and percentage_of_file_to_read > brutal_fallback_percentage
+                )
 
                 # Sometimes, though, we do know better than the user. If there are
                 # only a tiny number of particles in the file, let's not bother...
