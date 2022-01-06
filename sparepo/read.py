@@ -113,9 +113,14 @@ class SpatialLoader:
         Gets the snapshot filename for a given chunk.
         """
 
-        return self.snapshot.parent / (
+        multi_file = self.snapshot.parent / (
             self.snapshot.stem.split(".")[0] + f".{chunk}.hdf5"
         )
+
+        if multi_file.exists():
+            return multi_file
+        else:
+            return self.snapshot
 
     def read_attribute(self, group_name: str, attribute_name: str) -> Any:
         """
@@ -590,9 +595,14 @@ class FullLoader:
         Gets the snapshot filename for a given chunk.
         """
 
-        return self.snapshot.parent / (
+        multi_file = self.snapshot.parent / (
             self.snapshot.stem.split(".")[0] + f".{chunk}.hdf5"
         )
+
+        if multi_file.exists():
+            return multi_file
+        else:
+            return self.snapshot
 
     def read_attribute(self, group_name: str, attribute_name: str) -> Any:
         """
