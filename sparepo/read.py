@@ -520,3 +520,287 @@ class SpatialLoader:
             units=self.unyt_units(part_type=part_type, field_name=field_name),
             name=f"{part_type.name.title()} {field_name} (Physical, h-free)",
         )
+
+
+@attr.s
+class FullLoader:
+    """
+    Load (all) data from files, which does not require the hashtable.
+
+    Note that there is no built-in periodic wrapping.
+
+    Parameters
+    ----------
+
+    snapshot: Path
+        Path to the first snapshot (the one including ``.0.hdf5``)
+    """
+
+    snapshot: Path = attr.ib(converter=Path)
+
+    box_size: float = attr.ib(init=False)
+    number_of_chunks: int = attr.ib(init=False)
+    hubble_param: float = attr.ib(init=False)
+    scale_factor: float = attr.ib(init=False)
+
+    available_part_types: List[ParticleType] = attr.ib(init=False)
+
+    def __attrs_post_init__(self):
+        """
+        Loads in metadata from the hashtable.
+        """
+
+        with h5py.File(self.snapshot, "r") as handle:
+            header_attrs = handle["Header"].attrs
+
+            self.box_size = header_attrs["BoxSize"]
+            self.number_of_chunks = header_attrs["NumFilesPerSnapshot"]
+            self.hubble_param = header_attrs["HubbleParam"]
+            self.scale_factor = header_attrs["Time"]
+
+    def snapshot_filename_for_chunk(self, chunk: int):
+        """
+        Gets the snapshot filename for a given chunk.
+        """
+
+        return self.snapshot.parent / (
+            self.snapshot.stem.split(".")[0] + f".{chunk}.hdf5"
+        )
+
+    def unit_correction(
+        self, part_type: ParticleType, field_name: str
+    ) -> Tuple[Union[float, int], float, float, float]:
+        """
+        Gets the physical correction (i.e. removing a- and h- factors),
+        based on the metadata available in the snapshot, as well
+        as the scalings of individual units.
+
+        Parameters
+        ----------
+
+        part_type: ParticleType
+            Particle type to read. Example: ParticleType.Gas
+
+        field_name: str
+            Particle field to read. Example: Coordinates
+
+
+        Returns
+        -------
+
+        correction_factor: Union[float, int]
+            Appropriate correction factor. If the field is an integer,
+            1 is returned as no integer fields should be scaled by
+            any cosmological quantities (they are, e.g. particle IDs).
+
+        length_scaling: float
+            Unit length^length_scaling factor in the units.
+
+        mass_scaling: float
+            Unit mass^mass_scaling in the units.
+
+        velocity_scaling: float
+            Unit velocity^velocity_scaling in the units.
+        """
+
+        dataset_path = f"PartType{part_type.value}/{field_name}"
+
+        with h5py.File(self.snapshot_filename_for_chunk(chunk=0), "r") as handle:
+            dataset = handle[dataset_path]
+
+            try:
+                a_scale = self.scale_factor ** dataset.attrs["a_scaling"]
+                h_scale = self.hubble_param ** dataset.attrs["h_scaling"]
+            except KeyError:
+                a_scale = 1.0
+                h_scale = 1.0
+
+            correction_factor: float = a_scale * h_scale
+
+            try:
+                length = float(dataset.attrs["length_scaling"])
+                mass = float(dataset.attrs["mass_scaling"])
+                velocity = float(dataset.attrs["velocity_scaling"])
+            except KeyError:
+                length = 0.0
+                mass = 0.0
+                velocity = 0.0
+
+            if np.issubdtype(dataset.dtype, np.integer):
+                correction_factor: int = 1
+
+        return correction_factor, length, mass, velocity
+
+    def unyt_units(
+        self, part_type: ParticleType, field_name: str
+    ) -> "unyt.unyt_quantity":
+        """
+        Gets an ``unyt.unyt_quantity`` containing the appropriate units
+        for the given field. Requires ``unyt`` be installed.
+
+        Parameters
+        ----------
+
+        part_type: ParticleType
+            Particle type to read. Example: ParticleType.Gas
+
+        field_name: str
+            Particle field to read. Example: Coordinates
+
+
+        Returns
+        -------
+
+        units: unyt.unyt_quantity
+            Units assocaited with this dataset.
+        """
+
+        if not unyt_available:
+            raise ModuleNotFoundError(
+                "Unyt not available, please install before using this feature."
+            )
+
+        correction, length, mass, velocity = self.unit_correction(
+            part_type=part_type, field_name=field_name
+        )
+        dataset_path = f"PartType{part_type.value}/{field_name}"
+
+        with h5py.File(self.snapshot_filename_for_chunk(chunk=0), "r") as handle:
+            header = handle["Header"].attrs
+            dtype = handle[dataset_path].dtype
+
+            unit_length = unyt.unyt_quantity(header["UnitLength_in_cm"], "cm").to("kpc")
+            unit_mass = unyt.unyt_quantity(header["UnitMass_in_g"], "g").to(
+                "Solar_Mass"
+            )
+            unit_velocity = unyt.unyt_quantity(
+                header["UnitVelocity_in_cm_per_s"], "cm/s"
+            ).to("km/s")
+
+        if length == 0.0 and mass == 0.0 and velocity == 0.0:
+            units = unyt.unyt_quantity(correction * unyt.dimensionless, dtype=dtype)
+        else:
+            base_units = correction
+
+            for base, power in zip(
+                [unit_length, unit_mass, unit_velocity], [length, mass, velocity]
+            ):
+                if power != 0.0:
+                    base_units *= base ** power
+
+            units = unyt.unyt_quantity(base_units, dtype=dtype)
+
+        return units
+
+    def read_dataset(
+        self,
+        part_type: ParticleType,
+        field_name: str,
+    ) -> np.ndarray:
+        """
+        Reads a dataset in a given spatial region.
+
+        Parameters
+        ----------
+
+        part_type: ParticleType
+            Particle type to read. Example: ParticleType.Gas
+
+        field_name: str
+            Particle field to read. Example: Coordinates
+
+        Returns
+        -------
+
+        dataset: np.ndarray
+            Particle dataset within the specified spatial region.
+        """
+
+        dataset_path = f"PartType{part_type.value}/{field_name}"
+
+        with h5py.File(self.snapshot, "r") as handle:
+            num_part_total = handle["Header"].attrs["NumPart_Total"][part_type.value]
+            num_part_total_high_word = handle["Header"].attrs["NumPart_Total_HighWord"][
+                part_type.value
+            ]
+
+            particles_to_read = 2 ** 32 * num_part_total_high_word + num_part_total
+
+            dataset = handle[dataset_path]
+
+            shape = list(dataset.shape)
+            dtype = dataset.dtype
+
+        # Truncate the shape
+        shape[0] = particles_to_read
+
+        output = np.empty(shape, dtype=dtype)
+        already_read = 0
+
+        for file_number in range(self.number_of_chunks):
+            with h5py.File(
+                self.snapshot_filename_for_chunk(chunk=file_number), "r"
+            ) as handle:
+                to_be_read_from_file = handle["Header"].attrs["NumPart_ThisFile"][
+                    part_type.value
+                ]
+                dataset = handle[dataset_path]
+
+                size_of_range = to_be_read_from_file
+
+                output_dest_sel = np.s_[already_read : size_of_range + already_read]
+                input_dset_sel = np.s_[:]
+
+                dataset.read_direct(output, input_dset_sel, output_dest_sel)
+
+                already_read += size_of_range
+
+        assert already_read == particles_to_read
+
+        return output
+
+    def read_dataset_with_units(
+        self,
+        part_type: ParticleType,
+        field_name: str,
+    ) -> "unyt.unyt_array":
+        """
+        Reads a dataset in a given spatial region.
+
+        Parameters
+        ----------
+
+        part_type: ParticleType
+            Particle type to read. Example: ParticleType.Gas
+
+        field_name: str
+            Particle field to read. Example: Coordinates
+
+
+        Returns
+        -------
+
+        dataset: unyt.unyt_array
+            Particle dataset within the specified spatial region,
+            with the associated units.
+
+
+        Notes
+        -----
+
+        Requires that `unyt` be installed.
+        """
+
+        if not unyt_available:
+            raise ModuleNotFoundError(
+                "Unyt not available, please install before using this feature."
+            )
+
+        return unyt.unyt_array(
+            self.read_dataset(
+                part_type=part_type,
+                field_name=field_name,
+            ),
+            units=self.unyt_units(part_type=part_type, field_name=field_name),
+            name=f"{part_type.name.title()} {field_name} (Physical, h-free)",
+        )
