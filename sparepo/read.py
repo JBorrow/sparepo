@@ -11,7 +11,7 @@ a convenience object.
 """
 
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import attr
 import h5py
@@ -116,6 +116,33 @@ class SpatialLoader:
         return self.snapshot.parent / (
             self.snapshot.stem.split(".")[0] + f".{chunk}.hdf5"
         )
+
+    def read_attribute(self, group_name: str, attribute_name: str) -> Any:
+        """
+        Reads the attribute belonging to the given group. For instance,
+        you can pass "Header" and "Git_date". Note a few useful properties
+        are already imported as attributes of this object.
+
+        Parameters
+        ----------
+
+        group_name: str
+            Name of the HDF5 group to read from (usually "Header" or
+            "Parameters").
+
+        attribute_name: str
+            The attribute to read.
+
+
+        Returns
+        -------
+
+        attribute: Any
+            The attribute, read from file. The type depends on the attribute.
+        """
+
+        with h5py.File(self.snapshot, "r") as handle:
+            return handle[group_name].attrs[attribute_name]
 
     def unit_correction(
         self, part_type: ParticleType, field_name: str
@@ -566,6 +593,33 @@ class FullLoader:
         return self.snapshot.parent / (
             self.snapshot.stem.split(".")[0] + f".{chunk}.hdf5"
         )
+
+    def read_attribute(self, group_name: str, attribute_name: str) -> Any:
+        """
+        Reads the attribute belonging to the given group. For instance,
+        you can pass "Header" and "Git_date". Note a few useful properties
+        are already imported as attributes of this object.
+
+        Parameters
+        ----------
+
+        group_name: str
+            Name of the HDF5 group to read from (usually "Header" or
+            "Parameters").
+
+        attribute_name: str
+            The attribute to read.
+
+
+        Returns
+        -------
+
+        attribute: Any
+            The attribute, read from file. The type depends on the attribute.
+        """
+
+        with h5py.File(self.snapshot, "r") as handle:
+            return handle[group_name].attrs[attribute_name]
 
     def unit_correction(
         self, part_type: ParticleType, field_name: str
