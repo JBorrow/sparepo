@@ -283,6 +283,9 @@ def create_hashtable(
             for part_type in part_types_to_use:
                 part_type_string = f"PartType{part_type.value}"
 
+                if part_type not in particle_ids:
+                     continue
+
                 if not part_type_string in handle:
                     part_type_group = handle.create_group(part_type_string)
                 else:
@@ -305,12 +308,20 @@ def create_hashtable(
 
     # Finish off by creating an array of counts per file
     for part_type in part_types_to_use:
+        if part_type not in counts:
+            continue
+        if not counts[part_type].any():
+            continue
+
         output_count_array = np.empty(
             (cell_structure.cells_per_axis ** 3, metadata.number_of_chunks),
             dtype=np.int32,
         )
 
         for file_number, counts in enumerate(counts_by_file):
+            if part_type not in counts:
+                continue
+
             output_count_array[:, file_number] = counts[part_type][:]
 
         with h5py.File(hashtable, "a") as handle:
