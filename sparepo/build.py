@@ -109,6 +109,10 @@ class FileMetadata:
         with h5py.File(self.filename, "r") as handle:
             return handle["Header"].attrs[name]
 
+    def read_param_attr(self, name: str) -> Any:
+        with h5py.File(self.filename, "r") as handle:
+            return handle["Parameters"].attrs[name]
+
     @property
     def box_size(self) -> float:
         return float(self.read_header_attr(name="BoxSize"))
@@ -119,7 +123,11 @@ class FileMetadata:
 
     @property
     def hubble_param(self) -> float:
-        return float(self.read_header_attr(name="HubbleParam"))
+        with h5py.File(self.filename, 'r') as f:
+            if('HubbleParam' in f['Header'].attrs):
+                return float(self.read_header_attr(name="HubbleParam"))
+            else:
+                return float(self.read_param_attr(name="HubbleParam"))
 
     @property
     def unit(self) -> str:
